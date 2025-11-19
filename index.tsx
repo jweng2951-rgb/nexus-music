@@ -5,7 +5,7 @@ import './index.css';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  throw new Error("找不到要挂载的根元素");
+  throw new Error("Root element not found");
 }
 
 const root = ReactDOM.createRoot(rootElement);
