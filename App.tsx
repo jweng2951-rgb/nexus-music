@@ -410,7 +410,11 @@ function App() {
                 />
             )}
             {activeTab === 'settings' && (
-                <UserSettings user={currentUser} onUpdate={(data) => handleUpdateUser(currentUser.id, data)} />
+                <UserSettings 
+                    user={currentUser} 
+                    stats={statsMap[currentUser.id] || null}
+                    onUpdate={(data) => handleUpdateUser(currentUser.id, data)} 
+                />
             )}
         </>
       )}
