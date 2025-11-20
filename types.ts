@@ -1,4 +1,7 @@
-export enum UserRole { ADMIN = 'ADMIN', USER = 'USER' }
+export enum UserRole {
+  ADMIN = 'ADMIN',
+  USER = 'USER'
+}
 
 export interface User {
   id: string;
@@ -6,10 +9,17 @@ export interface User {
   password?: string;
   role: UserRole;
   revenueShare: number;
-  channelId?: string;
-  channelName?: string;
   createdAt: string;
   status: 'active' | 'suspended';
+}
+
+// 新增：频道定义
+export interface Channel {
+  id?: string;
+  userId: string;
+  channelId: string;
+  channelName?: string;
+  createdAt?: string;
 }
 
 export interface DailyStat {
@@ -20,7 +30,11 @@ export interface DailyStat {
   grossRevenue: number;
 }
 
-export interface CountryStat { code: string; views: number; revenue: number; }
+export interface CountryStat {
+  code: string;
+  views: number;
+  revenue: number;
+}
 
 export interface ChannelStats {
   totalViews: number;

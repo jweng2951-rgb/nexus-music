@@ -3,40 +3,33 @@
 @tailwind utilities;
 
 body {
-  background-color: #020617;
-  color: #e2e8f0;
+  background-color: #f8fafc; /* 浅灰背景 */
+  color: #0f172a; /* 深色文字 */
 }
 
-/* Custom scrollbar */
+/* 滚动条优化 */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #cbd5e1;
   border-radius: 10px;
 }
 
-/* Toast Animations */
+/* 动画定义 */
 @keyframes slideIn {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
-
 @keyframes fadeOut {
   from { opacity: 1; }
   to { opacity: 0; }
 }
-
-.toast-enter {
-  animation: slideIn 0.3s ease-out forwards;
-}
-
-.toast-exit {
-  animation: fadeOut 0.3s ease-in forwards;
-}
+.toast-enter { animation: slideIn 0.3s ease-out forwards; }
+.toast-exit { animation: fadeOut 0.3s ease-in forwards; }
+.animate-fade-in { animation: fadeIn 0.5s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
