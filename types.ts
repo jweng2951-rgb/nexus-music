@@ -1,4 +1,3 @@
-
 export enum UserRole {
   ADMIN = 'ADMIN',
   USER = 'USER'
@@ -9,7 +8,7 @@ export interface User {
   username: string;
   password?: string;
   role: UserRole;
-  revenueShare: number; // Percentage (0-100) - HIDDEN from User UI
+  revenueShare: number; // Percentage (0-100)
   createdAt: string;
   status: 'active' | 'suspended';
   channelId?: string;
@@ -19,31 +18,38 @@ export interface User {
 export interface Channel {
   id?: string;
   userId: string;
-  channelId: string; // The unique UC... ID
+  channelId: string;
   channelName?: string;
   createdAt?: string;
+}
+
+export interface VideoStat {
+  title: string;
+  views: number;
+  revenue: number;
 }
 
 export interface DailyStat {
   date: string;
   views: number;
   premiumViews: number;
-  estimatedRevenue: number; // NET revenue (User's share)
-  grossRevenue?: number; // RAW revenue (Only available to Admin logic)
+  estimatedRevenue: number;
+  grossRevenue?: number;
 }
 
 export interface CountryStat {
   code: string;
   views: number;
-  revenue: number; // NET revenue
+  revenue: number;
 }
 
 export interface ChannelStats {
   totalViews: number;
   totalPremiumViews: number;
-  totalRevenue: number; // NET revenue
+  totalRevenue: number;
   dailyStats: DailyStat[];
   topCountries: CountryStat[];
+  topVideos: VideoStat[]; // 新增：热门视频列表
   lastUpdated: string;
 }
 
