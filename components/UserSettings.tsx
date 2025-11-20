@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { User, Channel } from '../types';
 import { dataService } from '../services/dataService';
-import { Trash2, ExternalLink, Youtube, Upload, CheckCircle2, AlertCircle, BarChart2, X } from 'lucide-react';
+import { Trash2, ExternalLink, Youtube, Upload, CheckCircle2, AlertCircle, BarChart2 } from 'lucide-react';
 
 interface Props {
   user: User;
@@ -37,13 +36,11 @@ export const UserSettings: React.FC<Props> = ({ user, onViewChannelStats }) => {
     lines.forEach(line => {
       let id = line;
       // Smart Parse: Extract UC ID from URL
+      // Support: youtube.com/channel/ID, youtube.com/@handle (not supported by Sync but we can try to parse), straight ID
       if (line.includes('/channel/')) {
           id = line.split('/channel/')[1].split(/[/?]/)[0];
-      } else if (line.includes('@')) {
-          invalidLines.push(line); // Handle links are not supported for syncing
-          return;
-      }
-
+      } 
+      
       if (id.startsWith('UC') && id.length > 10) {
           newChannels.push({ userId: user.id, channelId: id });
       } else {
@@ -59,16 +56,16 @@ export const UserSettings: React.FC<Props> = ({ user, onViewChannelStats }) => {
           setBulkInput(invalidLines.join('\n')); // Keep invalid ones
           showNotification(`Successfully bound ${newChannels.length} channels.`, 'success');
       } else {
-          showNotification('Error saving channels. Some IDs might be bound to other users.', 'error');
+          showNotification('Error saving channels.', 'error');
       }
       setIsImporting(false);
     } else {
-      showNotification('No valid Channel IDs (UC...) found.', 'error');
+      showNotification('No valid Channel IDs (UC...) found in selection.', 'error');
     }
   };
 
   const handleDelete = async (id: string) => {
-    if(confirm('Are you sure you want to unbind this channel? Data collection will stop.')) {
+    if(confirm('Unbind this channel? Tracking will stop.')) {
       await dataService.deleteChannel(id);
       loadChannels();
       showNotification('Channel unbound.', 'success');
@@ -78,81 +75,85 @@ export const UserSettings: React.FC<Props> = ({ user, onViewChannelStats }) => {
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-fade-in relative">
       {toast && (
-          <div className={`fixed top-20 right-10 z-50 px-4 py-3 rounded-xl shadow-xl border flex items-center gap-2 animate-fade-in ${toast.type === 'success' ? 'bg-emerald-900/90 border-emerald-500/30 text-emerald-100' : 'bg-red-900/90 border-red-500/30 text-red-100'}`}>
+          <div className={`fixed top-20 right-10 z-50 px-4 py-3 rounded-xl shadow-xl border flex items-center gap-2 animate-fade-in ${toast.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
               {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5"/> : <AlertCircle className="w-5 h-5"/>}
               {toast.msg}
           </div>
       )}
 
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/40 p-8 rounded-3xl border border-white/5">
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
         <div>
-          <h2 className="text-3xl font-bold text-white">Channel Management</h2>
-          <p className="text-slate-400 mt-2">Bind your YouTube channels to start tracking revenue.</p>
+          <h2 className="text-2xl font-bold text-slate-800">Channel Manager</h2>
+          <p className="text-slate-500 mt-1">Bind YouTube channels to your account for tracking.</p>
         </div>
-        <div className="flex items-center gap-4 bg-indigo-500/10 px-6 py-4 rounded-2xl border border-indigo-500/20">
-             <Youtube className="w-8 h-8 text-indigo-400" />
+        <div className="flex items-center gap-4 bg-indigo-50 px-6 py-4 rounded-xl border border-indigo-100">
+             <Youtube className="w-8 h-8 text-indigo-600" />
              <div>
-                 <p className="text-xs font-bold text-indigo-300 uppercase">Total Channels</p>
-                 <p className="text-2xl font-bold text-white">{channels.length}</p>
+                 <p className="text-xs font-bold text-indigo-600 uppercase">Total Linked</p>
+                 <p className="text-2xl font-bold text-slate-900">{channels.length}</p>
              </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Bulk Import Column */}
+        {/* Bulk Import */}
         <div className="lg:col-span-1 space-y-6">
-             <div className="bg-slate-900/40 backdrop-blur-md p-6 rounded-3xl border border-white/5 shadow-lg h-full">
-                <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Upload className="w-5 h-5 text-indigo-400" /> Bulk Bind Channels</h3>
-                <div className="bg-indigo-900/20 p-3 rounded-xl border border-indigo-500/20 mb-4">
-                    <p className="text-xs text-indigo-200">Paste YouTube Channel Links or IDs. One per line.</p>
+             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm h-full flex flex-col">
+                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Upload className="w-5 h-5 text-indigo-600" /> Bulk Import</h3>
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 mb-4">
+                    <p className="text-xs text-slate-500">Supported Formats:</p>
+                    <ul className="text-xs text-slate-400 mt-1 list-disc list-inside font-mono">
+                        <li>https://youtube.com/channel/UC...</li>
+                        <li>UC_12345abcdefg...</li>
+                    </ul>
                 </div>
                 <textarea 
                     value={bulkInput}
                     onChange={e => setBulkInput(e.target.value)}
-                    className="w-full h-64 p-4 bg-black/30 border border-white/10 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-slate-300 placeholder-slate-600"
-                    placeholder={"https://www.youtube.com/channel/UC_123...\nUC_abcde123..."}
+                    className="flex-1 w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-slate-800 placeholder-slate-400"
+                    placeholder={"Paste links here...\nOne per line"}
                 />
                 <button 
                     onClick={handleBulkImport} 
                     disabled={isImporting || !bulkInput}
-                    className="w-full mt-4 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/20"
+                    className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all disabled:opacity-50 shadow-md shadow-indigo-100"
                 >
                     {isImporting ? 'Processing...' : 'Bind Channels'}
                 </button>
              </div>
         </div>
 
-        {/* Channel List Column */}
-        <div className="lg:col-span-2 bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/5 shadow-lg overflow-hidden flex flex-col h-full">
-            <div className="p-6 border-b border-white/5 flex justify-between items-center">
-                <h3 className="font-bold text-white">Active Bindings</h3>
+        {/* List */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[600px]">
+            <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                <h3 className="font-bold text-slate-800">Linked Channels</h3>
             </div>
-            <div className="flex-1 overflow-y-auto max-h-[600px] custom-scrollbar">
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
                 <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-900/80 text-slate-400 font-medium border-b border-white/5 sticky top-0 backdrop-blur-md z-10">
+                    <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0 z-10">
                         <tr>
-                            <th className="px-6 py-4">Channel ID</th>
-                            <th className="px-6 py-4 text-right">Analytics</th>
-                            <th className="px-6 py-4 text-right">Action</th>
+                            <th className="px-6 py-3">Channel ID</th>
+                            <th className="px-6 py-3 text-right">Analytics</th>
+                            <th className="px-6 py-3 text-right">Action</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-white/5">
+                    <tbody className="divide-y divide-slate-100">
                         {channels.length === 0 ? (
-                            <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-500">No channels bound yet.</td></tr>
+                            <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-400">No channels linked.</td></tr>
                         ) : channels.map(ch => (
-                            <tr key={ch.id} className="hover:bg-white/[0.02] transition-colors group">
-                                <td className="px-6 py-4 font-mono text-slate-300 flex items-center gap-3">
-                                    <Youtube className="w-5 h-5 text-red-500" />
-                                    <span className="select-all">{ch.channelId}</span>
-                                    <a href={`https://youtube.com/channel/${ch.channelId}`} target="_blank" className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-white transition-opacity"><ExternalLink className="w-3 h-3" /></a>
+                            <tr key={ch.id} className="hover:bg-slate-50 transition-colors group">
+                                <td className="px-6 py-4 font-mono text-slate-600 flex items-center gap-3">
+                                    <Youtube className="w-5 h-5 text-red-600" />
+                                    <span className="select-all font-medium">{ch.channelId}</span>
+                                    <a href={`https://youtube.com/channel/${ch.channelId}`} target="_blank" className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600"><ExternalLink className="w-3 h-3" /></a>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <button onClick={() => onViewChannelStats(ch.channelId)} className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold hover:bg-emerald-500/20 transition-colors flex items-center gap-1 ml-auto">
-                                        <BarChart2 className="w-3 h-3" /> View Stats
+                                    <button onClick={() => onViewChannelStats(ch.channelId)} className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:border-indigo-300 hover:text-indigo-600 transition-colors inline-flex items-center gap-1">
+                                        <BarChart2 className="w-3 h-3" /> Stats
                                     </button>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <button onClick={() => handleDelete(ch.id!)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
+                                    <button onClick={() => handleDelete(ch.id!)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
                                 </td>
                             </tr>
                         ))}
