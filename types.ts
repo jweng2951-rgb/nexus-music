@@ -23,6 +23,7 @@ export interface Channel {
   createdAt?: string;
 }
 
+// 新增：单视频数据结构
 export interface VideoStat {
   title: string;
   views: number;
