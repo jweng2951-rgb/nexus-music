@@ -1,23 +1,30 @@
+
 import React, { useState, useEffect } from 'react';
 import { User, Channel } from '../types';
 import { dataService } from '../services/dataService';
-import { Plus, Trash2, ExternalLink, Youtube, Save, AlertCircle, CheckCircle2, Upload } from 'lucide-react';
+import { Trash2, ExternalLink, Youtube, Upload, CheckCircle2, AlertCircle, BarChart2, X } from 'lucide-react';
 
-interface Props { user: User; }
+interface Props {
+  user: User;
+  onViewChannelStats: (channelId: string) => void;
+}
 
-export const UserSettings: React.FC<Props> = ({ user }) => {
+export const UserSettings: React.FC<Props> = ({ user, onViewChannelStats }) => {
   const [channels, setChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
   const [bulkInput, setBulkInput] = useState('');
   const [isImporting, setIsImporting] = useState(false);
-  const [toast, setToast] = useState('');
+  const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
 
   useEffect(() => { loadChannels(); }, [user.id]);
 
   const loadChannels = async () => {
     const data = await dataService.getUserChannels(user.id);
     setChannels(data);
-    setLoading(false);
+  };
+
+  const showNotification = (msg: string, type: 'success'|'error') => {
+      setToast({msg, type});
+      setTimeout(() => setToast(null), 3000);
   };
 
   const handleBulkImport = async () => {
@@ -25,100 +32,127 @@ export const UserSettings: React.FC<Props> = ({ user }) => {
     if (lines.length === 0) return;
 
     const newChannels: Channel[] = [];
-    const errors: string[] = [];
+    const invalidLines: string[] = [];
 
     lines.forEach(line => {
-      // 简单提取逻辑
       let id = line;
-      if (line.includes('/channel/')) id = line.split('/channel/')[1].split('/')[0];
-      if (id.startsWith('UC')) newChannels.push({ userId: user.id, channelId: id });
-      else errors.push(line);
+      // Smart Parse: Extract UC ID from URL
+      if (line.includes('/channel/')) {
+          id = line.split('/channel/')[1].split(/[/?]/)[0];
+      } else if (line.includes('@')) {
+          invalidLines.push(line); // Handle links are not supported for syncing
+          return;
+      }
+
+      if (id.startsWith('UC') && id.length > 10) {
+          newChannels.push({ userId: user.id, channelId: id });
+      } else {
+          invalidLines.push(line);
+      }
     });
 
     if (newChannels.length > 0) {
       setIsImporting(true);
-      await dataService.saveBulkChannels(newChannels);
-      await loadChannels();
-      setBulkInput('');
+      const success = await dataService.saveBulkChannels(newChannels);
+      if (success) {
+          await loadChannels();
+          setBulkInput(invalidLines.join('\n')); // Keep invalid ones
+          showNotification(`Successfully bound ${newChannels.length} channels.`, 'success');
+      } else {
+          showNotification('Error saving channels. Some IDs might be bound to other users.', 'error');
+      }
       setIsImporting(false);
-      setToast(`Successfully added ${newChannels.length} channels.`);
     } else {
-      setToast('No valid Channel IDs found (Must start with UC...)');
+      showNotification('No valid Channel IDs (UC...) found.', 'error');
     }
-    setTimeout(() => setToast(''), 3000);
   };
 
   const handleDelete = async (id: string) => {
-    if(confirm('Unbind this channel?')) {
+    if(confirm('Are you sure you want to unbind this channel? Data collection will stop.')) {
       await dataService.deleteChannel(id);
       loadChannels();
+      showNotification('Channel unbound.', 'success');
     }
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
-      {/* 统计卡片 */}
-      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+    <div className="max-w-7xl mx-auto space-y-8 animate-fade-in relative">
+      {toast && (
+          <div className={`fixed top-20 right-10 z-50 px-4 py-3 rounded-xl shadow-xl border flex items-center gap-2 animate-fade-in ${toast.type === 'success' ? 'bg-emerald-900/90 border-emerald-500/30 text-emerald-100' : 'bg-red-900/90 border-red-500/30 text-red-100'}`}>
+              {toast.type === 'success' ? <CheckCircle2 className="w-5 h-5"/> : <AlertCircle className="w-5 h-5"/>}
+              {toast.msg}
+          </div>
+      )}
+
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/40 p-8 rounded-3xl border border-white/5">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Channel Management</h2>
-          <p className="text-slate-500 mt-1">Manage your bounded YouTube channels here.</p>
+          <h2 className="text-3xl font-bold text-white">Channel Management</h2>
+          <p className="text-slate-400 mt-2">Bind your YouTube channels to start tracking revenue.</p>
         </div>
-        <div className="flex items-center gap-4">
-            <div className="px-5 py-3 bg-indigo-50 rounded-xl border border-indigo-100 text-center">
-                <p className="text-xs font-bold text-indigo-500 uppercase">Total Channels</p>
-                <p className="text-2xl font-bold text-indigo-700">{channels.length}</p>
-            </div>
+        <div className="flex items-center gap-4 bg-indigo-500/10 px-6 py-4 rounded-2xl border border-indigo-500/20">
+             <Youtube className="w-8 h-8 text-indigo-400" />
+             <div>
+                 <p className="text-xs font-bold text-indigo-300 uppercase">Total Channels</p>
+                 <p className="text-2xl font-bold text-white">{channels.length}</p>
+             </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* 批量导入区 */}
+        {/* Bulk Import Column */}
         <div className="lg:col-span-1 space-y-6">
-             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Upload className="w-5 h-5 text-indigo-600" /> Bulk Import</h3>
-                <p className="text-sm text-slate-500 mb-4">Paste Channel IDs (one per line). We automatically strip URLs.</p>
+             <div className="bg-slate-900/40 backdrop-blur-md p-6 rounded-3xl border border-white/5 shadow-lg h-full">
+                <h3 className="font-bold text-white mb-4 flex items-center gap-2"><Upload className="w-5 h-5 text-indigo-400" /> Bulk Bind Channels</h3>
+                <div className="bg-indigo-900/20 p-3 rounded-xl border border-indigo-500/20 mb-4">
+                    <p className="text-xs text-indigo-200">Paste YouTube Channel Links or IDs. One per line.</p>
+                </div>
                 <textarea 
                     value={bulkInput}
                     onChange={e => setBulkInput(e.target.value)}
-                    className="w-full h-48 p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
-                    placeholder={"UC_12345...\nhttps://youtube.com/channel/UC_abcde..."}
+                    className="w-full h-64 p-4 bg-black/30 border border-white/10 rounded-xl text-sm font-mono focus:ring-2 focus:ring-indigo-500 outline-none resize-none text-slate-300 placeholder-slate-600"
+                    placeholder={"https://www.youtube.com/channel/UC_123...\nUC_abcde123..."}
                 />
                 <button 
                     onClick={handleBulkImport} 
                     disabled={isImporting || !bulkInput}
-                    className="w-full mt-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all disabled:opacity-50"
+                    className="w-full mt-4 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all disabled:opacity-50 shadow-lg shadow-indigo-900/20"
                 >
-                    {isImporting ? 'Importing...' : 'Import Channels'}
+                    {isImporting ? 'Processing...' : 'Bind Channels'}
                 </button>
-                {toast && <div className="mt-3 p-3 bg-emerald-50 text-emerald-700 text-sm rounded-lg border border-emerald-100 flex gap-2"><CheckCircle2 className="w-4 h-4"/> {toast}</div>}
              </div>
         </div>
 
-        {/* 频道列表区 */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="font-bold text-slate-800">Linked Channels</h3>
+        {/* Channel List Column */}
+        <div className="lg:col-span-2 bg-slate-900/40 backdrop-blur-md rounded-3xl border border-white/5 shadow-lg overflow-hidden flex flex-col h-full">
+            <div className="p-6 border-b border-white/5 flex justify-between items-center">
+                <h3 className="font-bold text-white">Active Bindings</h3>
             </div>
-            <div className="max-h-[600px] overflow-y-auto">
+            <div className="flex-1 overflow-y-auto max-h-[600px] custom-scrollbar">
                 <table className="w-full text-sm text-left">
-                    <thead className="bg-slate-50 text-slate-500 font-medium border-b border-slate-100 sticky top-0">
+                    <thead className="bg-slate-900/80 text-slate-400 font-medium border-b border-white/5 sticky top-0 backdrop-blur-md z-10">
                         <tr>
-                            <th className="px-6 py-3">Channel ID</th>
-                            <th className="px-6 py-3 text-right">Action</th>
+                            <th className="px-6 py-4">Channel ID</th>
+                            <th className="px-6 py-4 text-right">Analytics</th>
+                            <th className="px-6 py-4 text-right">Action</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-white/5">
                         {channels.length === 0 ? (
-                            <tr><td colSpan={2} className="px-6 py-12 text-center text-slate-400">No channels linked yet.</td></tr>
+                            <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-500">No channels bound yet.</td></tr>
                         ) : channels.map(ch => (
-                            <tr key={ch.id} className="hover:bg-slate-50 transition-colors group">
-                                <td className="px-6 py-4 font-mono text-slate-600 flex items-center gap-2">
-                                    <Youtube className="w-4 h-4 text-red-500" />
-                                    {ch.channelId}
-                                    <a href={`https://youtube.com/channel/${ch.channelId}`} target="_blank" className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-indigo-600"><ExternalLink className="w-3 h-3" /></a>
+                            <tr key={ch.id} className="hover:bg-white/[0.02] transition-colors group">
+                                <td className="px-6 py-4 font-mono text-slate-300 flex items-center gap-3">
+                                    <Youtube className="w-5 h-5 text-red-500" />
+                                    <span className="select-all">{ch.channelId}</span>
+                                    <a href={`https://youtube.com/channel/${ch.channelId}`} target="_blank" className="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-white transition-opacity"><ExternalLink className="w-3 h-3" /></a>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <button onClick={() => handleDelete(ch.id!)} className="text-slate-400 hover:text-red-600 p-2 rounded-md hover:bg-red-50 transition-all"><Trash2 className="w-4 h-4" /></button>
+                                    <button onClick={() => onViewChannelStats(ch.channelId)} className="px-3 py-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-xs font-bold hover:bg-emerald-500/20 transition-colors flex items-center gap-1 ml-auto">
+                                        <BarChart2 className="w-3 h-3" /> View Stats
+                                    </button>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                    <button onClick={() => handleDelete(ch.id!)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
                                 </td>
                             </tr>
                         ))}
