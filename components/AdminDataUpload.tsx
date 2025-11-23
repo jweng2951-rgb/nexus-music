@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileText, AlertCircle, CheckCircle, CloudLightning } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle, CloudLightning, AlertTriangle } from 'lucide-react';
 import { CsvRow, User } from '../types';
 
 interface Props {
@@ -7,7 +7,7 @@ interface Props {
   users: User[]; 
 }
 
-export const AdminDataUpload: React.FC<Props> = ({ onDataParsed }) => {
+export const AdminDataUpload: React.FC<Props> = ({ onDataParsed, users }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<'idle' | 'analyzing' | 'ready' | 'success' | 'error'>('idle');
@@ -22,20 +22,20 @@ export const AdminDataUpload: React.FC<Props> = ({ onDataParsed }) => {
     }
   };
 
+  // 核心修复：健壮的 CSV 解析函数，处理引号和逗号
   const parseCSVLine = (line: string) => {
-    // Robust CSV Regex to handle quotes: "Title, with comma",ID,Date...
     const regex = /(?:,|\n|^)("(?:(?:"")*[^"]*)*"|[^",\n]*|(?:\n|$))/g;
     const matches = [];
     let match;
     while ((match = regex.exec(line)) !== null) {
         if (match[1] !== undefined) {
-             // Remove enclosing quotes and unescape double quotes
+            // 去除首尾引号，并处理双引号转义
             let val = match[1].replace(/^"|"$/g, '').replace(/""/g, '"');
-            matches.push(val);
+            matches.push(val.trim());
         }
     }
-    // If simpler format (no quotes), fallback to split if regex fails or returns odd length
-    if (matches.length < 5) return line.split(',');
+    // 如果正则失败（某些简单格式），回退到 split
+    if (matches.length < 5) return line.split(',').map(s => s.trim());
     return matches;
   };
 
@@ -49,7 +49,7 @@ export const AdminDataUpload: React.FC<Props> = ({ onDataParsed }) => {
         const lines = text.split('\n');
         const tempParsed: CsvRow[] = [];
         
-        // Auto-detect header row
+        // 自动跳过标题行
         let startIndex = 0;
         if (lines[0].toLowerCase().includes('date') || lines[0].toLowerCase().includes('channel')) startIndex = 1;
 
@@ -57,31 +57,32 @@ export const AdminDataUpload: React.FC<Props> = ({ onDataParsed }) => {
             const line = lines[i].trim();
             if (!line) continue;
             
-            // Use Robust Parser
             const parts = parseCSVLine(line);
             
-            // Flexible mapping: Assuming standard YT Export format or our template
-            // Template: Date, Channel ID, Video Title, Country, Views, Premium Views, Revenue
+            // 兼容多种 CSV 格式 (只要有7列数据)
+            // 假设顺序: Date, Channel ID, Video Title, Country, Views, Premium Views, Revenue
             if (parts.length >= 7) {
                 tempParsed.push({
-                    date: parts[0].trim(),
-                    channelId: parts[1].trim(),
-                    videoTitle: parts[2].trim(),
-                    country: parts[3].trim(),
-                    views: parts[4].trim().replace(/,/g, ''), // Remove commas from numbers
-                    premiumViews: parts[5].trim().replace(/,/g, ''),
-                    grossRevenue: parts[6].trim().replace(/,/g, '').replace('$', '')
+                    date: parts[0],
+                    channelId: parts[1],
+                    videoTitle: parts[2],
+                    country: parts[3],
+                    // 核心修复：清洗数字中的逗号和货币符号
+                    views: parts[4].replace(/,/g, ''),
+                    premiumViews: parts[5].replace(/,/g, ''),
+                    grossRevenue: parts[6].replace(/,/g, '').replace('$', '').replace('€', '')
                 });
             }
         }
 
-        if (tempParsed.length === 0) throw new Error("No valid rows found. Check CSV format.");
+        if (tempParsed.length === 0) throw new Error("No valid data rows found.");
 
         setParsedData(tempParsed);
         setTimeout(() => setStatus('ready'), 800);
       } catch (error) {
+        console.error(error);
         setStatus('error');
-        setMessage("Failed to parse CSV. Ensure format is: Date, ChannelID, Title, Country, Views, Premium, Revenue");
+        setMessage("Failed to parse CSV. Ensure columns: Date, ChannelID, Title, Country, Views, Premium, Revenue");
       }
     };
     reader.readAsText(file);
@@ -90,7 +91,7 @@ export const AdminDataUpload: React.FC<Props> = ({ onDataParsed }) => {
   const confirmSync = () => {
       onDataParsed(parsedData);
       setStatus('success');
-      setMessage(`Successfully synchronized ${parsedData.length} records.`);
+      setMessage(`Success! Synchronized ${parsedData.length} records.`);
   };
 
   return (
@@ -98,24 +99,32 @@ export const AdminDataUpload: React.FC<Props> = ({ onDataParsed }) => {
         <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-10 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-blue-50 mb-6"><CloudLightning className="w-8 h-8 text-blue-600" /></div>
             <h2 className="text-2xl font-bold text-slate-800">Data Sync Hub</h2>
-            <p className="text-slate-500 mt-2 mb-8">Import standard YouTube CMS exports.</p>
+            <p className="text-slate-500 mt-2 mb-8">Import YouTube CMS data (CSV) to update dashboards.</p>
 
             {status === 'idle' || status === 'analyzing' || status === 'error' ? (
                 <>
                     <div className={`border-2 border-dashed rounded-2xl p-12 transition-all ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-slate-50 hover:border-slate-400'}`} onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }} onDragLeave={() => setIsDragging(false)} onDrop={(e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files?.[0]) setFile(e.dataTransfer.files[0]); }}>
                         <input type="file" accept=".csv" onChange={handleFileChange} className="hidden" id="csv-upload" />
-                        {!file ? (<label htmlFor="csv-upload" className="cursor-pointer block"><Upload className="w-8 h-8 text-slate-400 mx-auto mb-4" /><span className="text-blue-600 font-bold hover:underline">Click to upload</span> <span className="text-slate-500">or drop CSV</span></label>) : (<div className="flex items-center justify-center gap-4"><FileText className="w-8 h-8 text-emerald-500" /><div className="text-left"><p className="font-bold text-slate-800">{file.name}</p><p className="text-sm text-slate-400">{(file.size / 1024).toFixed(1)} KB</p></div><button onClick={() => { setFile(null); setStatus('idle'); }} className="ml-4 text-sm text-red-500 font-bold">Remove</button></div>)}
+                        {!file ? (<label htmlFor="csv-upload" className="cursor-pointer block"><Upload className="w-8 h-8 text-slate-400 mx-auto mb-4" /><span className="text-blue-600 font-bold hover:underline">Click to upload</span> <span className="text-slate-500">or drop CSV file</span></label>) : (<div className="flex items-center justify-center gap-4"><FileText className="w-8 h-8 text-emerald-500" /><div className="text-left"><p className="font-bold text-slate-800">{file.name}</p><p className="text-sm text-slate-400">{(file.size / 1024).toFixed(1)} KB</p></div><button onClick={() => { setFile(null); setStatus('idle'); }} className="ml-4 text-sm text-red-500 font-bold">Remove</button></div>)}
                     </div>
-                    {file && (<button onClick={analyzeFile} disabled={status === 'analyzing'} className="mt-8 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all">{status === 'analyzing' ? 'Analyzing...' : 'Analyze Data'}</button>)}
+                    {file && (<button onClick={analyzeFile} disabled={status === 'analyzing'} className="mt-8 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all">{status === 'analyzing' ? 'Analyzing CSV...' : 'Analyze & Preview'}</button>)}
                     {status === 'error' && <div className="mt-6 p-4 bg-red-50 text-red-600 rounded-xl flex items-center gap-2"><AlertCircle className="w-5 h-5" /> {message}</div>}
                 </>
             ) : (
                 <div className="space-y-6">
-                    <div className="bg-slate-50 rounded-xl p-6 border border-slate-100"><p className="text-3xl font-bold text-slate-800">{parsedData.length}</p><p className="text-sm text-slate-500 uppercase tracking-wide font-bold mt-1">Valid Rows Ready to Sync</p></div>
-                    <div className="flex gap-4"><button onClick={() => { setStatus('idle'); setFile(null); }} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold">Cancel</button><button onClick={confirmSync} className="flex-[2] py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-200">Confirm & Sync</button></div>
+                    <div className="bg-slate-50 rounded-xl p-6 border border-slate-100 flex items-center justify-between">
+                        <div className="text-left">
+                            <p className="text-3xl font-bold text-slate-800">{parsedData.length}</p>
+                            <p className="text-xs text-slate-500 uppercase tracking-wide font-bold mt-1">Rows Detected</p>
+                        </div>
+                        <div className="text-right">
+                             <p className="text-sm text-slate-500">Ready to distribute to users</p>
+                        </div>
+                    </div>
+                    <div className="flex gap-4"><button onClick={() => { setStatus('idle'); setFile(null); }} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50">Cancel</button><button onClick={confirmSync} className="flex-[2] py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-200">Confirm & Sync</button></div>
                 </div>
             )}
-            {status === 'success' && <div className="mt-8 p-5 bg-emerald-50 text-emerald-700 rounded-xl flex items-center gap-3"><CheckCircle className="w-6 h-6" /><span className="font-bold">{message}</span></div>}
+            {status === 'success' && <div className="mt-8 p-5 bg-emerald-50 text-emerald-700 rounded-xl flex items-center gap-3 justify-center"><CheckCircle className="w-6 h-6" /><span className="font-bold">{message}</span></div>}
         </div>
     </div>
   );
