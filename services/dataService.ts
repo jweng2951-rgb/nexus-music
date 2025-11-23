@@ -1,131 +1,152 @@
-import { supabase } from '../lib/supabaseClient';
-import { User, UserRole, MusicTrack, ChannelStats, Channel } from '../types';
-import { MOCK_ADMIN, INITIAL_MUSIC } from '../constants';
+import { User, Asset, Channel, DashboardStats } from '../types';
+import { SEED_ADMIN, MOCK_ASSETS, MOCK_CHANNELS } from '../constants';
+
+// Simulating a backend database in localStorage
+const KEYS = {
+  USERS: 'nexus_cms_users',
+  ASSETS: 'nexus_cms_assets',
+  CHANNELS: 'nexus_cms_channels',
+  SESSION: 'nexus_cms_session'
+};
+
+const initializeDB = () => {
+  if (!localStorage.getItem(KEYS.USERS)) {
+    localStorage.setItem(KEYS.USERS, JSON.stringify([SEED_ADMIN]));
+  }
+  if (!localStorage.getItem(KEYS.ASSETS)) {
+    localStorage.setItem(KEYS.ASSETS, JSON.stringify(MOCK_ASSETS));
+  }
+  if (!localStorage.getItem(KEYS.CHANNELS)) {
+    localStorage.setItem(KEYS.CHANNELS, JSON.stringify(MOCK_CHANNELS));
+  }
+};
+
+initializeDB();
 
 export const dataService = {
-  // --- User Management ---
-  getUsers: async (): Promise<User[]> => {
-    const { data, error } = await supabase.from('users').select('*');
-    if (error) return [];
-    return data.map((u: any) => ({
-      id: u.id, username: u.username, password: u.password, role: u.role as UserRole,
-      revenueShare: u.revenue_share, createdAt: u.created_at, status: u.status,
-      channelId: u.channel_id, channelName: u.channel_name
-    }));
+  // Auth
+  login: (username: string, password: string): User | null => {
+    const users: User[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+    const user = users.find(u => u.username === username && u.password === password);
+    return user || null;
   },
-  saveUser: async (user: User) => {
-    const payload = {
-      id: user.id, username: user.username, password: user.password, role: user.role,
-      revenue_share: user.revenueShare, created_at: user.createdAt, status: user.status,
-      channel_id: user.channelId, channel_name: user.channelName
-    };
-    await supabase.from('users').upsert(payload);
-  },
-  deleteUser: async (id: string) => { await supabase.from('users').delete().eq('id', id); },
 
-  // --- Channel Management (FIXED) ---
-  getUserChannels: async (userId: string): Promise<Channel[]> => {
-    const { data } = await supabase.from('channels').select('*').eq('user_id', userId);
-    return data ? data.map((c: any) => ({
-        id: c.id, userId: c.user_id, channelId: c.channel_id, channelName: c.channel_name, createdAt: c.created_at
-    })) : [];
+  // User Management (Master Only)
+  getUsers: (): User[] => {
+    const users: User[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+    return users.filter(u => u.role !== 'MASTER'); // Only return sub-accounts
   },
-  getAllChannels: async (): Promise<Channel[]> => {
-    const { data } = await supabase.from('channels').select('*');
-    return data ? data.map((c: any) => ({
-        id: c.id, userId: c.user_id, channelId: c.channel_id, channelName: c.channel_name, createdAt: c.created_at
-    })) : [];
+
+  createUser: (user: Omit<User, 'id' | 'role' | 'createdAt'>): User => {
+    const users: User[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+    if (users.find(u => u.username === user.username)) {
+      throw new Error("Username exists");
+    }
+    const newUser: User = {
+      ...user,
+      id: Math.random().toString(36).substr(2, 9),
+      role: 'SUB',
+      createdAt: new Date().toISOString()
+    };
+    users.push(newUser);
+    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
+    return newUser;
   },
-  // FIX: Use Upsert on channel_id to force ownership. This fixes "cannot bind" issues.
-  saveBulkChannels: async (channels: Channel[]) => {
-    const payload = channels.map(c => ({
-        channel_id: c.channelId, // Unique Key
-        user_id: c.userId,       // New Owner
-        channel_name: c.channelName
-    }));
-    
-    // Upsert: If channel_id exists, update user_id. If not, insert.
-    // This requires 'channel_id' to be a UNIQUE column in Supabase.
-    // Fallback: Delete then Insert if constraint is missing (slower but safer for generic SQL).
-    
-    try {
-        // 1. Clean existing bindings for these IDs to prevent constraint errors if unique index exists
-        const ids = channels.map(c => c.channelId);
-        await supabase.from('channels').delete().in('channel_id', ids);
-        
-        // 2. Insert fresh bindings
-        const { error } = await supabase.from('channels').insert(payload);
-        if (error) throw error;
-        return true;
-    } catch (e) {
-        console.error("Bulk Save Error:", e);
-        return false;
+
+  updateUser: (id: string, updates: Partial<User>) => {
+    const users: User[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+    const idx = users.findIndex(u => u.id === id);
+    if (idx !== -1) {
+      users[idx] = { ...users[idx], ...updates };
+      localStorage.setItem(KEYS.USERS, JSON.stringify(users));
     }
   },
-  deleteChannel: async (id: string) => { await supabase.from('channels').delete().eq('id', id); },
 
-  // --- Stats Management ---
-  getUserStats: async (): Promise<Record<string, ChannelStats>> => {
-    const { data } = await supabase.from('stats').select('*');
-    const statsMap: Record<string, ChannelStats> = {};
-    data?.forEach((s: any) => {
-        statsMap[s.user_id] = {
-            totalViews: s.total_views || 0,
-            totalPremiumViews: s.total_premium_views || 0,
-            totalRevenue: s.total_revenue || 0,
-            dailyStats: s.daily_stats || [],
-            topCountries: s.top_countries || [],
-            topVideos: s.top_videos || [],
-            channelCatalog: s.channel_catalog || [],
-            lastUpdated: s.last_updated || new Date().toISOString()
-        };
-    });
-    return statsMap;
+  deleteUser: (id: string) => {
+    let users: User[] = JSON.parse(localStorage.getItem(KEYS.USERS) || '[]');
+    users = users.filter(u => u.id !== id);
+    localStorage.setItem(KEYS.USERS, JSON.stringify(users));
   },
-  getChannelStats: async (channelId: string): Promise<ChannelStats | null> => {
-    const { data } = await supabase.from('channel_stats_daily').select('*').eq('channel_id', channelId).single();
-    if (!data) return null;
-    return {
-        totalViews: data.total_views || 0,
-        totalPremiumViews: data.total_premium_views || 0,
-        totalRevenue: data.total_revenue || 0,
-        dailyStats: data.daily_stats || [],
-        topCountries: data.top_countries || [],
-        topVideos: data.top_videos || [],
-        channelCatalog: [],
-        lastUpdated: data.last_updated || new Date().toISOString()
+
+  // Asset Management
+  getAssets: (currentUser: User): Asset[] => {
+    let assets: Asset[] = JSON.parse(localStorage.getItem(KEYS.ASSETS) || '[]');
+    
+    // Sub accounts only see their own assets
+    if (currentUser.role === 'SUB') {
+        assets = assets.filter(a => a.ownerId === currentUser.id);
+    }
+    // Master accounts see ALL assets
+
+    // Apply ratio to earnings
+    return assets.map(a => ({
+      ...a,
+      earnings: a.earnings * currentUser.revenueRatio
+    }));
+  },
+
+  addAsset: (asset: Omit<Asset, 'id' | 'status' | 'isrc' | 'uploadDate' | 'earnings'>) => {
+    const assets: Asset[] = JSON.parse(localStorage.getItem(KEYS.ASSETS) || '[]');
+    const newAsset: Asset = {
+        ...asset,
+        id: Math.random().toString(36).substr(2, 9),
+        status: 'PROCESSING',
+        isrc: 'PENDING...',
+        uploadDate: new Date().toISOString().split('T')[0],
+        earnings: 0
     };
+    assets.unshift(newAsset);
+    localStorage.setItem(KEYS.ASSETS, JSON.stringify(assets));
   },
-  saveUserStats: async (userId: string, stats: ChannelStats) => {
-    await supabase.from('stats').upsert({
-      user_id: userId, total_views: stats.totalViews, total_premium_views: stats.totalPremiumViews, total_revenue: stats.totalRevenue,
-      daily_stats: stats.dailyStats, top_countries: stats.topCountries, top_videos: stats.topVideos, channel_catalog: stats.channelCatalog, last_updated: stats.lastUpdated
-    });
-  },
-  saveChannelStats: async (channelId: string, stats: ChannelStats) => {
-    await supabase.from('channel_stats_daily').upsert({
-        channel_id: channelId, total_views: stats.totalViews, total_premium_views: stats.totalPremiumViews, total_revenue: stats.totalRevenue,
-        daily_stats: stats.dailyStats, top_countries: stats.topCountries, top_videos: stats.topVideos, last_updated: stats.lastUpdated
-    }, { onConflict: 'channel_id' });
-  },
-  
-  // --- Music ---
-  getMusic: async (): Promise<MusicTrack[]> => {
-    const { data } = await supabase.from('music').select('*');
-    return data ? data.map((m: any) => ({ id: m.id, title: m.title, artist: m.artist, url: m.url, category: m.category, assignedToIds: m.assigned_to_ids || [], isrc: m.isrc })) : [];
-  },
-  saveTrack: async (track: MusicTrack) => {
-    await supabase.from('music').upsert({ id: track.id, title: track.title, artist: track.artist, url: track.url, category: track.category, assigned_to_ids: track.assignedToIds, isrc: track.isrc });
-  },
-  deleteTrack: async (id: string) => { await supabase.from('music').delete().eq('id', id); },
 
-  // --- Init ---
-  initialize: async () => {
-    try {
-        const { count } = await supabase.from('users').select('*', { count: 'exact', head: true });
-        if (count === 0) {
-            await supabase.from('users').insert({ id: MOCK_ADMIN.id, username: MOCK_ADMIN.username, password: MOCK_ADMIN.password, role: MOCK_ADMIN.role, revenue_share: MOCK_ADMIN.revenueShare, created_at: MOCK_ADMIN.createdAt, status: MOCK_ADMIN.status });
-        }
-    } catch (e) { console.error("Init error", e); }
+  assignAsset: (assetId: string, newOwnerId: string) => {
+    const assets: Asset[] = JSON.parse(localStorage.getItem(KEYS.ASSETS) || '[]');
+    const idx = assets.findIndex(a => a.id === assetId);
+    if (idx !== -1) {
+        assets[idx].ownerId = newOwnerId;
+        localStorage.setItem(KEYS.ASSETS, JSON.stringify(assets));
+    }
+  },
+
+  // Channel Management
+  getChannels: (): Channel[] => {
+    return JSON.parse(localStorage.getItem(KEYS.CHANNELS) || '[]');
+  },
+
+  bindChannel: () => {
+    const channels: Channel[] = JSON.parse(localStorage.getItem(KEYS.CHANNELS) || '[]');
+    const newChannel: Channel = {
+        id: Math.random().toString(36).substr(2, 9),
+        name: `New Channel ${channels.length + 1}`,
+        thumbnail: `https://picsum.photos/id/${70 + channels.length}/100/100`,
+        subscribers: '100',
+        linkedAt: new Date().toISOString().split('T')[0]
+    };
+    channels.push(newChannel);
+    localStorage.setItem(KEYS.CHANNELS, JSON.stringify(channels));
+  },
+
+  // Stats
+  getStats: (currentUser: User): DashboardStats => {
+    let assets = JSON.parse(localStorage.getItem(KEYS.ASSETS) || '[]') as Asset[];
+    
+    // Filter assets for stats calculation based on role
+    if (currentUser.role === 'SUB') {
+        assets = assets.filter(a => a.ownerId === currentUser.id);
+    }
+
+    const totalRealRevenue = assets.reduce((sum, a) => sum + a.earnings, 0);
+    
+    // Fake views calculation based on revenue
+    const totalViews = Math.floor(totalRealRevenue * 1500); 
+
+    const ratio = currentUser.revenueRatio;
+
+    return {
+        totalRevenue: totalRealRevenue * ratio,
+        totalViews: totalViews,
+        rpm: totalViews > 0 ? (totalRealRevenue / (totalViews / 1000)) * ratio : 0,
+        activeAssets: assets.length
+    };
   }
 };

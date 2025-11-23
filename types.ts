@@ -1,75 +1,46 @@
-export enum UserRole {
-  ADMIN = 'ADMIN',
-  USER = 'USER'
-}
+export type Role = 'MASTER' | 'SUB';
 
 export interface User {
   id: string;
   username: string;
-  password?: string;
-  role: UserRole;
-  revenueShare: number; // Percentage (0-100)
+  password?: string; // stored for mock purposes
+  role: Role;
+  revenueRatio: number; // 0.0 to 1.0 (e.g. 0.85 for 85%)
   createdAt: string;
-  status: 'active' | 'suspended';
-  channelId?: string;
-  channelName?: string;
+}
+
+export interface Asset {
+  id: string;
+  ownerId: string; // The user who owns/sees this track
+  title: string;
+  artist: string;
+  coverUrl: string;
+  fileName: string;
+  status: 'PROCESSING' | 'DISTRIBUTED' | 'REJECTED';
+  isrc: string;
+  uploadDate: string;
+  earnings: number; // Real value
 }
 
 export interface Channel {
-  id?: string;
-  userId: string;
-  channelId: string;
-  channelName?: string;
-  createdAt?: string;
-}
-
-// 新增：单视频数据结构
-export interface VideoStat {
-  title: string;
-  views: number;
-  revenue: number;
-}
-
-export interface DailyStat {
-  date: string;
-  views: number;
-  premiumViews: number;
-  estimatedRevenue: number;
-  grossRevenue?: number;
-}
-
-export interface CountryStat {
-  code: string;
-  views: number;
-  revenue: number;
-}
-
-export interface ChannelStats {
-  totalViews: number;
-  totalPremiumViews: number;
-  totalRevenue: number;
-  dailyStats: DailyStat[];
-  topCountries: CountryStat[];
-  topVideos: VideoStat[]; // 新增：热门视频列表
-  lastUpdated: string;
-}
-
-export interface MusicTrack {
   id: string;
-  title: string;
-  artist: string;
-  url: string;
-  category: string;
-  assignedToIds: string[];
-  isrc?: string;
+  name: string;
+  thumbnail: string;
+  subscribers: string;
+  linkedAt: string;
 }
 
-export interface CsvRow {
-  date: string;
-  channelId: string;
-  videoTitle: string;
-  country: string;
-  views: string | number;
-  premiumViews: string | number; 
-  grossRevenue: string | number; 
+export interface DashboardStats {
+  totalRevenue: number;
+  totalViews: number;
+  rpm: number;
+  activeAssets: number;
+}
+
+export enum View {
+  LOGIN = 'LOGIN',
+  DASHBOARD = 'DASHBOARD',
+  LIBRARY = 'LIBRARY',
+  CHANNELS = 'CHANNELS',
+  USERS = 'USERS' // Admin only
 }

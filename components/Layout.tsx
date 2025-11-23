@@ -1,154 +1,82 @@
 import React from 'react';
-import { User, UserRole } from '../types';
-import { 
-  LayoutDashboard, 
-  Users, 
-  Music, 
-  Upload, 
-  LogOut, 
-  Menu,
-  X,
-  AlertTriangle,
-  Sparkles,
-  Radio
-} from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { View } from '../types';
+import { HomeIcon, SearchIcon, LibraryIcon, SparklesIcon } from './Icons';
+
+// Reusing Icons file but mapping them to CMS concepts
+// Home -> Dashboard
+// Library -> Library
+// Search -> Channels (Visual metaphor: looking for channels)
+// Sparkles -> Admin (Magic master control)
 
 interface LayoutProps {
+  currentView: View;
+  setView: (v: View) => void;
   children: React.ReactNode;
-  user: User;
-  onLogout: () => void;
-  activeTab: string;
-  onTabChange: (tab: string) => void;
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, activeTab, onTabChange }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = React.useState(false);
+export const Layout: React.FC<LayoutProps> = ({ currentView, setView, children }) => {
+  const { user, logout } = useAuth();
 
-  const isAdmin = user.role === UserRole.ADMIN;
-  const hasChannelBound = !!user.channelId;
-
-  const menuItems = isAdmin 
-    ? [
-        { id: 'dashboard', label: 'Overview', icon: LayoutDashboard },
-        { id: 'users', label: 'User Management', icon: Users },
-        { id: 'music', label: 'Music Library', icon: Music },
-        { id: 'data', label: 'Data Import', icon: Upload },
-      ]
-    : [
-        { id: 'dashboard', label: 'My Dashboard', icon: LayoutDashboard },
-        { id: 'my-music', label: 'My Music', icon: Music },
-        { 
-            id: 'settings', 
-            label: 'Channel Manager',
-            icon: Radio,
-        },
-      ];
+  const NavItem = ({ view, icon: Icon, label }: { view: View; icon: any; label: string }) => (
+    <button
+      onClick={() => setView(view)}
+      className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+        currentView === view
+          ? 'bg-indigo-500/10 text-indigo-400 border-l-2 border-indigo-500'
+          : 'text-slate-400 hover:text-white hover:bg-slate-800'
+      }`}
+    >
+      <Icon className="w-5 h-5" />
+      <span className="font-medium text-sm">{label}</span>
+    </button>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex text-slate-900 font-sans">
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/20 z-20 lg:hidden backdrop-blur-sm"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
+    <div className="flex h-screen bg-slate-950 text-white font-sans overflow-hidden">
       {/* Sidebar */}
-      <aside className={`
-        fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-slate-200 shadow-sm transform transition-transform duration-300 ease-in-out
-        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <div className="h-16 flex items-center px-6 border-b border-slate-100">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-200">
-                <Sparkles className="w-5 h-5 text-white" />
-            </div>
-            <span className="font-bold text-lg text-slate-800 tracking-tight">Nexus<span className="text-indigo-600">Music</span></span>
+      <aside className="w-64 bg-slate-950 border-r border-slate-800 flex flex-col">
+        <div className="p-6">
+          <div className="flex items-center gap-2 mb-8">
+            <div className="w-8 h-8 bg-gradient-to-br from-cyan-400 to-indigo-600 rounded flex items-center justify-center font-bold">N</div>
+            <span className="text-xl font-bold tracking-tight">Nexus CMS</span>
           </div>
-          <button className="lg:hidden ml-auto text-slate-400 hover:text-slate-600" onClick={() => setIsSidebarOpen(false)}>
-            <X className="w-5 h-5" />
-          </button>
+          
+          <div className="mb-6 px-4 py-3 bg-slate-900 rounded-lg border border-slate-800">
+             <div className="text-xs text-slate-500 uppercase font-bold mb-1">Current User</div>
+             <div className="font-medium truncate">{user?.username}</div>
+             <div className="text-xs text-indigo-400 mt-1">{user?.role === 'MASTER' ? 'Administrator' : 'Partner'}</div>
+          </div>
         </div>
 
-        <div className="p-4">
-          <div className="flex items-center space-x-3 mb-6 p-3 bg-slate-50 rounded-xl border border-slate-100">
-            <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center font-bold text-indigo-700 text-sm">
-              {user.username.charAt(0).toUpperCase()}
-            </div>
-            <div className="overflow-hidden">
-              <p className="font-semibold text-slate-800 truncate text-sm">{user.username}</p>
-              <p className="text-xs text-slate-500 truncate">{isAdmin ? 'Administrator' : 'Creator Account'}</p>
-            </div>
-          </div>
+        <nav className="flex-1 px-4 space-y-1">
+          <NavItem view={View.DASHBOARD} icon={HomeIcon} label="Dashboard" />
+          <NavItem view={View.LIBRARY} icon={LibraryIcon} label="Asset Library" />
+          <NavItem view={View.CHANNELS} icon={SearchIcon} label="Linked Channels" />
+          
+          {user?.role === 'MASTER' && (
+            <>
+                <div className="pt-4 pb-2 px-4 text-xs font-bold text-slate-600 uppercase">Administration</div>
+                <NavItem view={View.USERS} icon={SparklesIcon} label="Sub-Accounts" />
+            </>
+          )}
+        </nav>
 
-          <nav className="space-y-1">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    onTabChange(item.id);
-                    setIsSidebarOpen(false);
-                  }}
-                  className={`
-                    w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 group font-medium text-sm
-                    ${isActive 
-                        ? 'bg-indigo-50 text-indigo-700' 
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}
-                  `}
-                >
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-        </div>
-
-        <div className="absolute bottom-0 w-full p-4 border-t border-slate-100">
-          <button
-            onClick={onLogout}
-            className="w-full flex items-center space-x-3 px-3 py-2 text-slate-500 hover:bg-red-50 hover:text-red-600 rounded-lg transition-all text-sm font-medium"
+        <div className="p-4 border-t border-slate-800">
+          <button 
+            onClick={logout}
+            className="w-full py-2 px-4 rounded-lg bg-slate-900 hover:bg-red-900/20 text-slate-400 hover:text-red-400 text-sm transition font-medium"
           >
-            <LogOut className="w-5 h-5" />
-            <span>Sign Out</span>
+            Log Out
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* Header */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-20 shadow-sm">
-            <div className="flex items-center">
-                <button 
-                    className="lg:hidden p-2 -ml-2 text-slate-500 mr-2"
-                    onClick={() => setIsSidebarOpen(true)}
-                >
-                    <Menu className="w-6 h-6" />
-                </button>
-                <h1 className="text-lg font-bold text-slate-800 tracking-tight">
-                    {menuItems.find(m => m.id === activeTab)?.label}
-                </h1>
-            </div>
-            
-            <div className="flex items-center gap-4">
-                <div className="text-sm text-slate-500 font-medium">
-                    {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                </div>
-            </div>
-        </header>
-
-        {/* Content Area */}
-        <div className="flex-1 overflow-auto p-6 lg:p-8 bg-slate-50">
-            <div className="max-w-7xl mx-auto space-y-6 pb-10">
-                {children}
-            </div>
-        </div>
+      {/* Main Content Area */}
+      <main className="flex-1 overflow-auto relative">
+         <div className="max-w-7xl mx-auto p-8">
+             {children}
+         </div>
       </main>
     </div>
   );

@@ -1,64 +1,59 @@
-import { User, UserRole, MusicTrack } from './types';
+import { User, Asset, Channel } from './types';
 
-export const MOCK_ADMIN: User = {
+export const SEED_ADMIN: User = {
   id: 'admin-001',
-  username: 'Admin',
-  password: 'Wswj123456',
-  role: UserRole.ADMIN,
-  revenueShare: 100,
-  createdAt: new Date().toISOString(),
-  status: 'active'
+  username: 'admin',
+  password: 'admin123', // In a real app, never store plain text
+  role: 'MASTER',
+  revenueRatio: 1.0,
+  createdAt: new Date().toISOString()
 };
 
-export const INITIAL_USERS: User[] = [
-  MOCK_ADMIN,
+export const MOCK_ASSETS: Asset[] = [
   {
-    id: 'user-001',
-    username: 'creator_one',
-    password: 'password',
-    role: UserRole.USER,
-    revenueShare: 70, // User gets 70% of the revenue uploaded in CSV
-    channelId: 'UC_12345abcde',
-    channelName: 'Funny Shorts 101',
-    createdAt: new Date(Date.now() - 86400000 * 10).toISOString(),
-    status: 'active'
+    id: 'a1',
+    ownerId: 'admin-001',
+    title: 'Neon Horizon',
+    artist: 'Cyberwalker',
+    coverUrl: 'https://picsum.photos/id/10/200/200',
+    fileName: 'neon_horizon.wav',
+    status: 'DISTRIBUTED',
+    isrc: 'US-NEX-24-00001',
+    uploadDate: '2024-02-15',
+    earnings: 1250.50
   },
   {
-    id: 'user-002',
-    username: 'creator_two',
-    password: 'password',
-    role: UserRole.USER,
-    revenueShare: 80, // User gets 80%
-    channelId: 'UC_67890fghij',
-    channelName: 'Daily Vines',
-    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
-    status: 'active'
+    id: 'a2',
+    ownerId: 'admin-001',
+    title: 'Digital Rain',
+    artist: 'Null Pointer',
+    coverUrl: 'https://picsum.photos/id/16/200/200',
+    fileName: 'digital_rain.mp3',
+    status: 'DISTRIBUTED',
+    isrc: 'US-NEX-24-00002',
+    uploadDate: '2024-02-18',
+    earnings: 840.20
+  },
+  {
+    id: 'a3',
+    ownerId: 'admin-001',
+    title: 'System Failure',
+    artist: 'Glitch Mob',
+    coverUrl: 'https://picsum.photos/id/54/200/200',
+    fileName: 'sys_fail.wav',
+    status: 'PROCESSING',
+    isrc: 'Pending',
+    uploadDate: '2024-02-20',
+    earnings: 0
   }
 ];
 
-export const INITIAL_MUSIC: MusicTrack[] = [
+export const MOCK_CHANNELS: Channel[] = [
   {
-    id: 'm-1',
-    title: 'Example Track (Playable)',
-    artist: 'StockAudio',
-    url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', // Real generic MP3 for testing playback
-    category: 'Pop',
-    assignedToIds: ['all']
-  },
-  {
-    id: 'm-2',
-    title: 'Epic Build Up',
-    artist: 'CinematicSounds',
-    url: '#',
-    category: 'Cinematic',
-    assignedToIds: ['user-001']
+    id: 'c1',
+    name: 'LoFi Beats Daily',
+    thumbnail: 'https://picsum.photos/id/65/100/100',
+    subscribers: '1.2M',
+    linkedAt: '2023-11-01'
   }
 ];
-
-// Mock stats storage key
-export const STORAGE_KEYS = {
-  USERS: 'shorts_cms_users_v2', // Versioned up to force refresh if needed
-  MUSIC: 'shorts_cms_music',
-  STATS: 'shorts_cms_stats_v2',
-  CURRENT_USER: 'shorts_cms_current_user'
-};
